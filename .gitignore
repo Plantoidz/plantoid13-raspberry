@@ -141,6 +141,8 @@ descriptions/
 # End of .gitignore
 # ================================================
 .env.save
-.envextra/
+.env
+
+extra/
 processed/
 processed2/
