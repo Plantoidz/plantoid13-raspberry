@@ -21,6 +21,7 @@ import subprocess
 
 
 
+
 load_dotenv('/home/patch/plantoidz-pi/secrets.env')
 
 API_KEY = os.getenv('API_KEY')
@@ -48,6 +49,7 @@ testnet_infura_prov = 'https://sepolia.infura.io/v3/cc7ca25d68f246f393d763084236
 testnet_infura_websock = 'wss://sepolia.infura.io/ws/v3/cc7ca25d68f246f393d7630842360c47'
 
 
+failsafe = 0
 
 
 def activatePlantoid(amount, tID, network):
@@ -60,15 +62,22 @@ def activatePlantoid(amount, tID, network):
 
     
     ### activate the plantooid for a specific amount of time, then create the metadata for the generated seed
-
-    seconds = amount / 100000000000000 # 0.001 eth per second
+    print("Activating plantoid on network == ", network)
+    
+    seconds = 0
+    if(network == "mainnet"):
+        seconds = amount / 500000000000000 # 0.01 eth per 20 seconds on MAINNET
+    else:
+        seconds = amount / 50000000000000 # 0.001 eth per 20 second on TESTNET
+        
     client.send_message('/plantoid/255/255/capa/0', 1024)
     print("activated for seconds: " + str(seconds))
     time.sleep(int(seconds))
     client.send_message('/plantoid/255/255/capa/0', 1024)
     print("de-activated")
 
-    create_metadata(tID, network)
+    if(network == "mainnet" or failsafe == 0):
+        create_metadata(tID, network)
 
  
 
@@ -84,10 +93,10 @@ def create_pin_animation2(file, network):
     if file_stats.st_size:
     # if filesize is > 0, then create a video out of the music .wav
     
-        os.system('python3 ' + '/home/patch/plantoidz-pi/sound_visualisation.py ' + 
+        os.system('python3 ' + '/home/patch/plantoidz-pi/sound_visualisation2.py ' + 
                   file +
                   " -o " + '/home/patch/plantoidz-pi/videos/' + network + "_" + token_Id + ".mp4 " +
-                  " --size 800 --fps 24")
+                  " --fps 24")
         
         movie_path = '/home/patch/plantoidz-pi/videos/' + network + "_" + token_Id + ".mp4"
 
@@ -155,7 +164,7 @@ def create_metadata(tID, network):
 
     if(ipfsQmp4):
         os.remove(file)
-    else
+    else:
         return
         
 
@@ -173,7 +182,7 @@ def create_metadata(tID, network):
     if not os.path.exists(path_meta):
         os.makedirs(path_meta)
 
-    with open(path_meta + tID + '.json', 'w') as outfile:
+    with open(path_meta + network + "_" + tID + '.json', 'w') as outfile:
         json.dump(db, outfile)
 
     
@@ -246,7 +255,7 @@ def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval
                 print("Mainnet processing is still true ...............\n")
 
             print('moving to handling mainnet event\n')
-            create_metadata(str(event.args.tokenId))
+            create_metadata(str(event.args.tokenId), "mainnet")
 
     # TESTNET
     print("\n=== Processing Testnet Historical Entries ===")
@@ -265,19 +274,21 @@ def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval
             print("testnet processing is still true ...............\n")
 
         print('moving to handling testnet event\n')
-        create_metadata(str(event.args.tokenId))
+        create_metadata(str(event.args.tokenId), "testnet")
 
     # Monitor for new events on both networks
     
     while(True):
 
         # MAINNET
+        print("checking deposits on Mainnet...\n")
         for event in main_event_filter.get_new_entries():
             print("NEW DEPOSIT EVENT on MAINNET")
             print(f"Mainnet tokenId: {event.args.tokenId}")
             activatePlantoid(event.args.amount, str(event.args.tokenId), "mainnet")
         
         # TESTNET
+        print("checking deposits on Testnet...\n")
         for event in test_event_filter.get_new_entries():
             print("NEW TESTNET DEPOSIT EVENT!")
             print(f"Testnet tokenId: {event.args.tokenId}")
@@ -296,12 +307,15 @@ def main():
    # local_url = 'http://127.0.0.1:8545'  # Local blockchain address
    # w3 = Web3(Web3.HTTPProvider(local_url))
    # w3 = Web3(Web3.HTTPProvider(infura_prov))
-    main_w3 = Web3(Web3.WebsocketProvider(mainnet_infura_websock))
+    
+    #main_w3 = Web3(Web3.WebsocketProvider(mainnet_infura_websock))
+    main_w3 = Web3(Web3.HTTPProvider(mainnet_infura_prov))
     print("mainnet: " , main_w3)
     print(main_w3.isConnected())
     
-    test_w3 = Web3(Web3.WebsocketProvider(testnet_infura_websock))
-    print("mainnet: " , test_w3)
+    #test_w3 = Web3(Web3.WebsocketProvider(testnet_infura_websock))
+    test_w3 = Web3(Web3.HTTPProvider(testnet_infura_prov))
+    print("testnet: " , test_w3)
     print(test_w3.isConnected())
     
     
@@ -315,7 +329,7 @@ def main():
     print("Mainnet balance: ", main_w3.eth.get_balance(main_address))
 
     test_contract = test_w3.eth.contract(address=test_address, abi=abi)
-    print("Testnet balance: ", test_w3.eth.get_balance(main_address))
+    print("Testnet balance: ", test_w3.eth.get_balance(test_address))
     
     print("--------------------------------------------------------------------\n")
 
@@ -333,7 +347,7 @@ def main():
     test_event_filter = test_contract.events.Deposit.createFilter(fromBlock=1)
     print(test_event_filter, "---testnet")
 
-    log_loop(main_w3, test_w3, main_event_filter, test_event_filter, 5)
+    log_loop(main_w3, test_w3, main_event_filter, test_event_filter, 7)
 
 
 if __name__ == '__main__':
