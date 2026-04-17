@@ -35,7 +35,7 @@ PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 METADATA_DB = os.getenv('METADATA_DB')
 
 INFURA_API_KEY = os.getenv('INFURA_API_KEY')
-
+INFURA_API_KEY = "9269205a29344528bb729dd45a25441a"
 
 pinata = Pinata(API_KEY, API_SECRET, JWT)
 
@@ -56,6 +56,8 @@ mainnet_infura_websock = 'wss://mainnet.infura.io/ws/v3/9269205a29344528bb729dd4
 
 testnet_infura_prov = 'https://sepolia.infura.io/v3/9269205a29344528bb729dd45a25441a'
 testnet_infura_websock = 'wss://sepolia.infura.io/ws/v3/9269205a29344528bb729dd45a25441a'
+
+
 
 failsafe = 0
 
@@ -86,7 +88,7 @@ def activatePlantoid(amount, tID, network):
 
     if(network == "mainnet" or failsafe == 0):
         create_metadata(tID, network)
-        enable_seed_reveal(tID)
+        enable_seed_reveal(tID, network)
 
  
 
@@ -211,10 +213,10 @@ def create_metadata(tID, network):
 
     
 
-def enable_seed_reveal(tID):
+def enable_seed_reveal(tID, network):
     """ Pin metadata to IPFS and send reveal Metadata tx to Polygon"""
 
-    metadata_path = f'./metadata/{tID}.json'
+    metadata_path = f'./metadata/{network}_{tID}.json'
     if not os.path.isfile(metadata_path):
         print(f'No metadata for seed {tID}, skipping')
         return
@@ -230,7 +232,7 @@ def enable_seed_reveal(tID):
     print(f'Pinned metadata: {ipfs_hash}')
 
     # Create message hash (same as Node.js version)
-    plantoid_address = Web.to_checksum_address(PLANTOID_ADDR)
+    plantoid_address = Web3.to_checksum_address(PLANTOID_ADDR)
     msg_hash = Web3.solidity_keccak(
             ['uint256', 'string', 'address'],
             [int(tID), token_uri, plantoid_address],
@@ -245,7 +247,7 @@ def enable_seed_reveal(tID):
     METADATA_ADDR = os.getenv('METADATA_ADDR', '0x580fDc17a820e3c0D17fbcd1137483C5332FCeb6')
     iface_abi =  [{"inputs":[{"name":"plantoid","type":"address"},{"name":"tokenId","type":"uint256"},{"name":"tokenUri","type":"string"},{"name":"signature","type":"bytes"}],"name":"revealMetadata","type":"function"}]
 
-    w3_polygon = Web3(Web3.HTTPProvider('https://polygon-rpc.com'))
+    w3_polygon = Web3(Web3.HTTPProvider('https://polygon-mainnet.infura.io/v3/' + INFURA_API_KEY))
     contract = w3_polygon.eth.contract(abi=iface_abi)
     data = contract.encodeABI(fn_name="revealMetadata", args=[
         plantoid_address, int(tID), token_uri, bytes.fromhex(sig.replace('0x', ''))
@@ -329,7 +331,7 @@ def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval
 
             print('moving to handling mainnet event\n')
             create_metadata(str(event.args.tokenId), "mainnet")
-            enable_seed_reveal(str(event.args.tokenId))
+            enable_seed_reveal(str(event.args.tokenId), "mainnet")
 
     # TESTNET
     print("\n=== Processing Testnet Historical Entries ===")
@@ -349,7 +351,7 @@ def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval
 
         print('moving to handling testnet event\n')
         create_metadata(str(event.args.tokenId), "testnet")
-        enable_seed_reveal(str(event.args.tokenId))
+        enable_seed_reveal(str(event.args.tokenId), "testnet")
     
 
     # Monitor for new events on both networks
@@ -387,12 +389,12 @@ def main():
     #main_w3 = Web3(Web3.WebsocketProvider(mainnet_infura_websock))
     main_w3 = Web3(Web3.HTTPProvider(mainnet_infura_prov))
     print("mainnet: " , main_w3)
-    print(main_w3.isConnected())
+    print(main_w3.is_connected())
     
     #test_w3 = Web3(Web3.WebsocketProvider(testnet_infura_websock))
     test_w3 = Web3(Web3.HTTPProvider(testnet_infura_prov))
     print("testnet: " , test_w3)
-    print(test_w3.isConnected())
+    print(test_w3.is_connected())
     
     
     abi = '[{"inputs": [ { "internalType": "uint256", "name": "amount", "type": "uint256", "indexed": false }, { "internalType": "address", "name": "sender", "type": "address", "indexed": false }, { "internalType": "uint256", "name": "tokenId", "type": "uint256", "indexed": true } ], "type": "event", "name": "Deposit", "anonymous": false }]'
