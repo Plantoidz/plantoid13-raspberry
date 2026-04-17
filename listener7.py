@@ -19,6 +19,7 @@ import requests
 
 import subprocess
 
+import pin_utils
 
 
 
@@ -42,12 +43,19 @@ pinata = Pinata(API_KEY, API_SECRET, JWT)
 mainnet_plantoid = "0x6949bc5Fb1936407bEDd9F3757DA62147741f2A1"
 testnet_plantoid = "0x35fd9840d5489f748908e2cbd356f768b8534f11"
 
+
 mainnet_infura_prov = 'https://mainnet.infura.io/v3/cc7ca25d68f246f393d7630842360c47'
 mainnet_infura_websock = 'wss://mainnet.infura.io/ws/v3/cc7ca25d68f246f393d7630842360c47'
 
 testnet_infura_prov = 'https://sepolia.infura.io/v3/cc7ca25d68f246f393d7630842360c47'
 testnet_infura_websock = 'wss://sepolia.infura.io/ws/v3/cc7ca25d68f246f393d7630842360c47'
 
+
+mainnet_infura_prov = 'https://mainnet.infura.io/v3/9269205a29344528bb729dd45a25441a'
+mainnet_infura_websock = 'wss://mainnet.infura.io/ws/v3/9269205a29344528bb729dd45a25441a'
+
+testnet_infura_prov = 'https://sepolia.infura.io/v3/9269205a29344528bb729dd45a25441a'
+testnet_infura_websock = 'wss://sepolia.infura.io/ws/v3/9269205a29344528bb729dd45a25441a'
 
 failsafe = 0
 
@@ -163,6 +171,9 @@ def create_metadata(tID, network):
     #    ipfsQwav = response['data']['IpfsHash']
 
     if(ipfsQmp4):
+        qrcode = pin_utils.create_ipfs_qr("https://ipfs.io/ipfs/" + ipfsQmp4)
+        pin_utils.print_thermal_txt("Redeem your NFT: https://13.plantoid.org")
+        pin_utils.print_thermal_img(qrcode)
         os.remove(file)
     else:
         return
@@ -193,6 +204,11 @@ def create_metadata(tID, network):
 
 
     ### NB: the metadata file will be pinned to IPFS via the node server
+
+    ### ---> actually, NOW WE DO IT VIA PYTHON  :)
+
+    
+
 
 
 
