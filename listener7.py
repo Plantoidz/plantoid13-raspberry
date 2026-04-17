@@ -1,5 +1,5 @@
 from web3 import Web3
-from eth_account import messages
+from eth_account import Account, messages
 from eth_abi import encode
 import sha3
 
@@ -86,6 +86,7 @@ def activatePlantoid(amount, tID, network):
 
     if(network == "mainnet" or failsafe == 0):
         create_metadata(tID, network)
+        enable_seed_reveal(tID)
 
  
 
@@ -206,7 +207,63 @@ def create_metadata(tID, network):
     ### NB: the metadata file will be pinned to IPFS via the node server
 
     ### ---> actually, NOW WE DO IT VIA PYTHON  :)
+    # enable_seed_reveal(tID) ### better to move it outside of the function
 
+    
+
+def enable_seed_reveal(tID):
+    """ Pin metadata to IPFS and send reveal Metadata tx to Polygon"""
+
+    metadata_path = f'./metadata/{tID}.json'
+    if not os.path.isfile(metadata_path):
+        print(f'No metadata for seed {tID}, skipping')
+        return
+
+    # Pin metadata to IPFS
+    response = pinata.pin_file(metadata_path)
+    if not response or not response.get('data'):
+        print("Pinata pin failed")
+        return
+
+    ipfs_hash = response['data']['IpfsHash']
+    token_uri = 'ipfs://' + ipfs_hash
+    print(f'Pinned metadata: {ipfs_hash}')
+
+    # Create message hash (same as Node.js version)
+    plantoid_address = Web.to_checksum_address(PLANTOID_ADDR)
+    msg_hash = Web3.solidity_keccak(
+            ['uint256', 'string', 'address'],
+            [int(tID), token_uri, plantoid_address],
+            )
+
+    # Sign the hash
+    prepared = messages.defunct_hash_message(primitive=msg_hash)
+    signed = Account.signHash(prepared, PRIVATE_KEY)
+    sig = signed.signature.hex()
+
+    # Encode the revealMetadata function call
+    METADATA_ADDR = os.getenv('METADATA_ADDR', '0x580fDc17a820e3c0D17fbcd1137483C5332FCeb6')
+    iface_abi =  [{"inputs":[{"name":"plantoid","type":"address"},{"name":"tokenId","type":"uint256"},{"name":"tokenUri","type":"string"},{"name":"signature","type":"bytes"}],"name":"revealMetadata","type":"function"}]
+
+    w3_polygon = Web3(Web3.HTTPProvider('https://polygon-rpc.com'))
+    contract = w3_polygon.eth.contract(abi=iface_abi)
+    data = contract.encodeABI(fn_name="revealMetadata", args=[
+        plantoid_address, int(tID), token_uri, bytes.fromhex(sig.replace('0x', ''))
+    ])
+
+    # Send tx to Polygon
+    account = Account.from_key(PRIVATE_KEY)
+    tx = {
+            'to': Web3.to_checksum_address(METADATA_ADDR),
+            'data': data,
+            'chainId': 137,
+            'gas':100000,
+            'gasPrice': w3_polygon.eth.gas_price,
+            'nonce': w3_polygon.eth.get_transaction_count(account.address),
+            }
+    signed_tx = w3_polygon.eth.account.sign_transaction(tx, PRIVATE_KEY)
+    tx_hash = w3_polygon.eth.send_raw_transaction(signed_tx.raw_transaction)
+    print(f'Sent reveal tx on Polygon: {tx_hash.hex()}')
     
 
 
@@ -272,6 +329,7 @@ def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval
 
             print('moving to handling mainnet event\n')
             create_metadata(str(event.args.tokenId), "mainnet")
+            enable_seed_reveal(str(event.args.tokenId))
 
     # TESTNET
     print("\n=== Processing Testnet Historical Entries ===")
@@ -291,6 +349,8 @@ def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval
 
         print('moving to handling testnet event\n')
         create_metadata(str(event.args.tokenId), "testnet")
+        enable_seed_reveal(str(event.args.tokenId))
+    
 
     # Monitor for new events on both networks
     
