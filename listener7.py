@@ -29,8 +29,14 @@ API_KEY = os.getenv('API_KEY')
 API_SECRET = os.getenv('API_SECRET')
 JWT = os.getenv('JWT')
 
-PLANTOID_ADDR = os.getenv('PLANTOID_ADDR')
+
+PLANTOID_ADDR_mainnet = os.getenv('PLANTOID_ADDR_mainnet')
+PLANTOID_ADDR_sepolia = os.getenv('PLANTOID_ADDR_sepolia')
+
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
+PUBLIC_ADDRESS = os.getenv('PUBLIC_ADDRESS')
+
+print("PRIVATE_KEY = ", PRIVATE_KEY)
 
 METADATA_DB = os.getenv('METADATA_DB')
 
@@ -231,16 +237,27 @@ def enable_seed_reveal(tID, network):
     token_uri = 'ipfs://' + ipfs_hash
     print(f'Pinned metadata: {ipfs_hash}')
 
+    
+
     # Create message hash (same as Node.js version)
-    plantoid_address = Web3.to_checksum_address(PLANTOID_ADDR)
+    
+
+    plantoid_address = None
+
+    if(network == "mainnet"):
+        plantoid_address = Web3.to_checksum_address(PLANTOID_ADDR_mainnet)
+    else:
+        plantoid_address = Web3.to_checksum_address(PLANTOID_ADDR_sepolia)
+
     msg_hash = Web3.solidity_keccak(
             ['uint256', 'string', 'address'],
             [int(tID), token_uri, plantoid_address],
             )
 
     # Sign the hash
-    prepared = messages.defunct_hash_message(primitive=msg_hash)
-    signed = Account.signHash(prepared, PRIVATE_KEY)
+    # prepared = messages.defunct_hash_message(primitive=msg_hash)
+    # signed = Account.signHash(prepared, PRIVATE_KEY)
+    signed = Account.unsafe_sign_hash(msg_hash, PRIVATE_KEY)
     sig = signed.signature.hex()
 
     # Encode the revealMetadata function call
@@ -249,7 +266,7 @@ def enable_seed_reveal(tID, network):
 
     w3_polygon = Web3(Web3.HTTPProvider('https://polygon-mainnet.infura.io/v3/' + INFURA_API_KEY))
     contract = w3_polygon.eth.contract(abi=iface_abi)
-    data = contract.encodeABI(fn_name="revealMetadata", args=[
+    data = contract.encode_abi("revealMetadata", [
         plantoid_address, int(tID), token_uri, bytes.fromhex(sig.replace('0x', ''))
     ])
 
@@ -267,7 +284,8 @@ def enable_seed_reveal(tID, network):
     tx_hash = w3_polygon.eth.send_raw_transaction(signed_tx.raw_transaction)
     print(f'Sent reveal tx on Polygon: {tx_hash.hex()}')
     
-
+    with open(f'minted_{network}.db', 'a') as f:
+        f.write(str(tID)+'\n')
 
 
 
@@ -400,8 +418,8 @@ def main():
     abi = '[{"inputs": [ { "internalType": "uint256", "name": "amount", "type": "uint256", "indexed": false }, { "internalType": "address", "name": "sender", "type": "address", "indexed": false }, { "internalType": "uint256", "name": "tokenId", "type": "uint256", "indexed": true } ], "type": "event", "name": "Deposit", "anonymous": false }]'
 
     print("Mainnet address == ", mainnet_plantoid, " and Testnet address = ", testnet_plantoid)
-    main_address = Web3.toChecksumAddress(mainnet_plantoid)
-    test_address = Web3.toChecksumAddress(testnet_plantoid)
+    main_address = Web3.to_checksum_address(mainnet_plantoid)
+    test_address = Web3.to_checksum_address(testnet_plantoid)
 
     main_contract = main_w3.eth.contract(address=main_address, abi=abi)
     print("Mainnet balance: ", main_w3.eth.get_balance(main_address))
@@ -419,10 +437,10 @@ def main():
 
     # print(contract.events.Deposit)
 
-    main_event_filter = main_contract.events.Deposit.createFilter(fromBlock=1)
+    main_event_filter = main_contract.events.Deposit.create_filter(from_block=1)
     print(main_event_filter, "---mainnet")
     
-    test_event_filter = test_contract.events.Deposit.createFilter(fromBlock=1)
+    test_event_filter = test_contract.events.Deposit.create_filter(from_block=1)
     print(test_event_filter, "---testnet")
 
     log_loop(main_w3, test_w3, main_event_filter, test_event_filter, 7)
