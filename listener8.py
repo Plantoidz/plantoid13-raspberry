@@ -250,7 +250,7 @@ def create_signer_and_sign(msg_hash, private_key):
 
 def encode_function_data(plantoid_address, abi_file_path, token_Id, ipfs_hash, sig):
 
-    w3 = Web3(EthereumTesterProvider())
+    w3 = Web3()
 
     with open(abi_file_path, 'r') as f:
         contract_json = json.load(f)
@@ -264,7 +264,7 @@ def encode_function_data(plantoid_address, abi_file_path, token_Id, ipfs_hash, s
     checksum_address =  Web3.to_checksum_address(plantoid_address)
 
     # Encode the function call
-    data = contract.encodeABI(fn_name="revealMetadata", args=[checksum_address, int(token_Id), token_Uri, bytes.fromhex(sig.replace('0x', ''))])
+    data = contract.encode_abi("revealMetadata", [checksum_address, int(token_Id), token_Uri, bytes.fromhex(sig.replace('0x', ''))])
 
     return data
 
