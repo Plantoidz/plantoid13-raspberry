@@ -221,6 +221,26 @@ def create_metadata(tID, network):
 def get_signer_private_key():
     return PRIVATE_KEY
 
+def get_msg_hash(plantoid_address, ipfs_hash, token_Id):
+
+    token_uri = 'ipfs://' + ipfs_hash
+
+    checksum_address =  Web3.to_checksum_address(plantoid_address)
+
+    msgHash = Web3.solidity_keccak(
+        ['uint256', 'string', 'address'],
+        [token_Id, token_uri, checksum_address],
+    )
+
+    def arrayify_bytes(hbytes):
+        return [hbytes[i] for i in range(len(hbytes))]
+
+    msgHashArrayified = arrayify_bytes(msgHash)
+  
+    # print('message hash: ', msgHash.hex())
+    # print('message hash arrayified: ', msgHashArrayified)
+
+    return msgHash, msgHash.hex(), msgHashArrayified
 
 def create_signer_and_sign(msg_hash, private_key):
     prepared_message = messages.defunct_hash_message(primitive=msg_hash)
