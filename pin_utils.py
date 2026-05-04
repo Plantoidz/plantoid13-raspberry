@@ -6,6 +6,8 @@ from escpos.printer import Usb
 import qrcode
 from PIL import Image
 
+import threading
+
 
 load_dotenv()
 
