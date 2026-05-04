@@ -52,31 +52,64 @@ def create_ipfs_qr(ipfs_link, output_file="/tmp/ipfs_qrcode.png", size=10):
 
 def print_thermal_txt(textual):
 
-    try: 
-        # p = Usb(0x0416, 0x5011, in_ep=0x81, out_ep=0x03)
-        p = Usb(0x0416, 0x5011)
-        p.text(textual)
-        p.cut()
-        p.close()
-    except Exception as e:
-        print(f"Error: Thermal printer not connected or accessible - {e}")
+    result = {"err": None}
+
+    def _work():
+
+        try: 
+            # p = Usb(0x0416, 0x5011, in_ep=0x81, out_ep=0x03)
+            p = Usb(0x0416, 0x5011)
+            p.text(textual)
+            p.cut()
+            p.close()
+        except Exception as e:
+            result["err"] = e
+    
+    t = threading.Thread(target=_work, daemon=True)
+    t.start()
+    t.join(timeout)
+
+    if t.is_alive():
+        print(f"[thermal] print hung for >{timeout}s, abandoning — printer offline?")
         return False
+    if result["err"]:
+        print(f"[thermal] print failed: {result['err']}")
+        return False
+    
+    return True     
+
+
+
+
+def print_thermal_img(image_file, timeout=10):
+
+    result = {"err": None}
+
+    def _work():
+
+        try:
+            # p = Usb(0x0416, 0x5011, in_ep=0x81, out_ep=0x03)
+            p = Usb(0x0416, 0x5011)        
+
+            img = Image.open(image_file)
+            img = img.resize((400, 400))
+
+            p.image(img)
+            p.cut()
+            p.close()
+        except Exception as e:
+            result["err"] = e
+    
+    t = threading.Thread(target=_work, daemon=True)
+    t.start()
+    t.join(timeout)
+
+    if t.is_alive():
+        print(f"[thermal] print hung for >{timeout}s, abandoning — printer offline?")
+        return False
+    if result["err"]:
+        print(f"[thermal] print failed: {result['err']}")
+        return False
+
     return True
 
-
-def print_thermal_img(image_file):
-    
-    try:
-        # p = Usb(0x0416, 0x5011, in_ep=0x81, out_ep=0x03)
-        p = Usb(0x0416, 0x5011)
-        img = Image.open(image_file)
-        img = img.resize((400, 400))
-
-        p.image(img)
-        p.cut()
-        p.close()
-    
-    except Exception as e:
-        print(f"Error: Thermal printer not connected or accessible - {e}")
-        return False
-    return True
