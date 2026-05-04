@@ -50,7 +50,7 @@ def create_ipfs_qr(ipfs_link, output_file="/tmp/ipfs_qrcode.png", size=10):
 
 
 
-def print_thermal_txt(textual):
+def print_thermal_txt(textual, timeout=10):
 
     result = {"err": None}
 
