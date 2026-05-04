@@ -73,8 +73,12 @@ def activatePlantoid(amount, tID, network):
 
     # client = udp_client.SimpleUDPClient('192.168.0.231', 9999)
     # client = udp_client.SimpleUDPClient('127.0.0.1', 9999) 
-    client = udp_client.SimpleUDPClient('255.255.255.255', 9999, True)
-    client.send_message('/filename', tID)
+    # client = udp_client.SimpleUDPClient('255.255.255.255', 9999, True)
+    
+    client_lights = udp_client.SimpleUDPClient('192.168.1.162', 9999, True)
+    client_local  = udp_client.SimpleUDPClient('127.0.0.1', 9999)
+
+    client_local.send_message('/filename', tID)
 
     
     ### activate the plantooid for a specific amount of time, then create the metadata for the generated seed
@@ -86,10 +90,12 @@ def activatePlantoid(amount, tID, network):
     else:
         seconds = amount / 50000000000000 # 0.001 eth per 20 second on TESTNET
         
-    client.send_message('/plantoid/255/255/capa/0', 1024)
+    client_local.send_message('/plantoid/255/255/capa/0', 1024)
+    client_lights.send_message('/plantoid/255/255/capa/0', 1024)
     print("activated for seconds: " + str(seconds))
     time.sleep(int(seconds))
-    client.send_message('/plantoid/255/255/capa/0', 1024)
+    client_local.send_message('/plantoid/255/255/capa/0', 1024)
+    client_lights.send_message('/plantoid/255/255/capa/0', 1024)
     print("de-activated")
 
     if(network == "mainnet" or failsafe == 0):
@@ -250,7 +256,7 @@ def create_signer_and_sign(msg_hash, private_key):
 
 def encode_function_data(plantoid_address, abi_file_path, token_Id, ipfs_hash, sig):
 
-    w3 = Web3(EthereumTesterProvider())
+    w3 = Web3()
 
     with open(abi_file_path, 'r') as f:
         contract_json = json.load(f)
@@ -264,7 +270,7 @@ def encode_function_data(plantoid_address, abi_file_path, token_Id, ipfs_hash, s
     checksum_address =  Web3.to_checksum_address(plantoid_address)
 
     # Encode the function call
-    data = contract.encodeABI(fn_name="revealMetadata", args=[checksum_address, int(token_Id), token_Uri, bytes.fromhex(sig.replace('0x', ''))])
+    data = contract.encode_abi("revealMetadata", [checksum_address, int(token_Id), token_Uri, bytes.fromhex(sig.replace('0x', ''))])
 
     return data
 
