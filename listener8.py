@@ -73,8 +73,12 @@ def activatePlantoid(amount, tID, network):
 
     # client = udp_client.SimpleUDPClient('192.168.0.231', 9999)
     # client = udp_client.SimpleUDPClient('127.0.0.1', 9999) 
-    client = udp_client.SimpleUDPClient('255.255.255.255', 9999, True)
-    client.send_message('/filename', tID)
+    # client = udp_client.SimpleUDPClient('255.255.255.255', 9999, True)
+    
+    client_lights = udp_client.SimpleUDPClient('192.168.1.162', 9999, True)
+    client_local  = udp_client.SimpleUDPClient('127.0.0.1', 9999)
+
+    client_local.send_message('/filename', tID)
 
     
     ### activate the plantooid for a specific amount of time, then create the metadata for the generated seed
@@ -86,10 +90,12 @@ def activatePlantoid(amount, tID, network):
     else:
         seconds = amount / 50000000000000 # 0.001 eth per 20 second on TESTNET
         
-    client.send_message('/plantoid/255/255/capa/0', 1024)
+    client_local.send_message('/plantoid/255/255/capa/0', 1024)
+    client_lights.send_message('/plantoid/255/255/capa/0', 1024)
     print("activated for seconds: " + str(seconds))
     time.sleep(int(seconds))
-    client.send_message('/plantoid/255/255/capa/0', 1024)
+    client_local.send_message('/plantoid/255/255/capa/0', 1024)
+    client_lights.send_message('/plantoid/255/255/capa/0', 1024)
     print("de-activated")
 
     if(network == "mainnet" or failsafe == 0):

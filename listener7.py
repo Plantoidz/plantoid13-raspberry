@@ -71,7 +71,7 @@ failsafe = 0
 def activatePlantoid(amount, tID, network):
     print('ACTIVATING THE PLANTOID .....................................\n')
 
-    # client = udp_client.SimpleUDPClient('192.168.0.231', 9999)
+    # client = udp_client.SimpleUDPClient('192.168.1.109', 9999)
     # client = udp_client.SimpleUDPClient('127.0.0.1', 9999) 
     client = udp_client.SimpleUDPClient('255.255.255.255', 9999, True)
     client.send_message('/filename', tID)
