@@ -112,6 +112,7 @@ def create_pin_animation2(file, network):
     
     file_stats = os.stat(file)
     token_Id = os.path.splitext(os.path.basename(file))[0]
+    movie_path = None
 
     if file_stats.st_size:
     # if filesize is > 0, then create a video out of the music .wav
