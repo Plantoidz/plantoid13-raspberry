@@ -123,6 +123,10 @@ def create_pin_animation2(file, network):
         
         movie_path = '/home/patch/plantoidz-pi/videos/' + network + "_" + token_Id + ".mp4"
 
+    if not movie_path: 
+        print("NO MOVIE PATH, file_stats == 0")
+        return
+
     print("pinning file... " + movie_path)
 
     response = pinata.pin_file(movie_path)
