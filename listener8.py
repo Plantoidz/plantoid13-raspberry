@@ -13,7 +13,6 @@ import json
 
 from pathlib import Path
 
-from pinata import Pinata
 
 import requests
 
@@ -22,8 +21,37 @@ import subprocess
 import pin_utils
 
 
+from indexer_client import IndexerClient, IndexerUnavailable
+
+
+from pinata import Pinata
+
+def _pinata_pin_file_safe(self, file):
+    """Replaces Pinata.pin_file to close the file handle (upstream leak)."""
+
+    if not isinstance(file, str):
+        raise NotImplementedError("only path strings are supported")
+    if not os.path.exists(file):
+        return {'status': 'error', 'message': 'File does not exist'}
+    
+    with open(file, 'rb') as fh:
+        raw = requests.post(
+            self.base_url + 'pinning/pinFileToIPFS',
+            headers=self.headers,
+            files={'file': fh},
+        ).json()
+
+    if 'error' in raw:
+        return {'status': 'error', 'message': raw['error']['details']}
+    return {'status': 'success', 'data': raw}
+
+Pinata.pin_file = _pinata_pin_file_safe
+
+
 
 load_dotenv('/home/patch/plantoidz-pi/secrets.env')
+
+INDEXER_URL = os.getenv('INDEXER_URL', 'https://plantoidz-brainz.tail98279f.ts.net')
 
 API_KEY = os.getenv('API_KEY')
 API_SECRET = os.getenv('API_SECRET')
@@ -219,8 +247,8 @@ def create_metadata(tID, network):
     
     ### record in the database that this seed has been processed
 
-    with open('minted_' + network + '.db', 'a') as outfile:
-        outfile.write(tID + "\n")
+    # with open('minted_' + network + '.db', 'a') as outfile:
+    #     outfile.write(tID + "\n")
 
 
     ### NB: the metadata file will be pinned to IPFS via the node server
@@ -392,9 +420,79 @@ def handle_event(event, w3):
 
 
 
+def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval,
+               main_indexer=None, test_indexer=None):
+
+    # --- catch-up phase: process any historical seeds not yet in minted_<network>.db ---
+
+    def catch_up(network, indexer, event_filter):
+        minted_path = f'minted_{network}.db'
+        processed = set()
+        if os.path.exists(minted_path):
+            with open(minted_path) as f:
+                processed = {line.strip() for line in f if line.strip()}
+
+        tokens = None
+        if indexer is not None:
+            try:
+                tokens = indexer.fetch_all_token_ids()
+                print(f"[indexer:{network}] fetched {len(tokens)} historical tokenIds")
+            except IndexerUnavailable as e:
+                print(f"[indexer:{network}] catch-up unavailable, falling back to RPC: {e}")
+
+        if tokens is None:
+            try:
+                tokens = [str(e.args.tokenId) for e in event_filter.get_all_entries()]
+            except Exception as err:
+                print(f"[{network}] catch-up RPC failed: {err}")
+                return
+
+        print(f"\n=== Processing {network} historical entries ===")
+        for tid in tokens:
+            if tid in processed:
+                continue
+            print(f"[{network}] catch-up tokenId: {tid}")
+            create_metadata(tid, network)
+            enable_seed_reveal(tid, network)
+
+    catch_up("mainnet", main_indexer, main_event_filter)
+    catch_up("testnet", test_indexer, test_event_filter)
+
+    # --- realtime phase: poll for new deposits ---
+
+    def poll_one(network, indexer, event_filter):
+        
+        # try indexer first
+        if indexer is not None:
+            try:
+                deposit = indexer.fetch_oldest_unprocessed_deposit()
+                if deposit is not None:
+                    indexer.advance_cursor(deposit['tokenId'])
+                    print(f"[indexer:{network}] new deposit token={deposit['tokenId']} amount={deposit['amount']}")
+                    activatePlantoid(deposit['amount'], deposit['tokenId'], network)
+                return
+            except IndexerUnavailable as e:
+                print(f"[indexer:{network}] unavailable, falling back to RPC: {e}")
+
+        # RPC fallback
+        for event in event_filter.get_new_entries():
+            print(f"[{network}] new deposit token={event.args.tokenId}")
+            activatePlantoid(event.args.amount, str(event.args.tokenId), network)
+
+    while True:
+        print("checking deposits on Mainnet...")
+        poll_one("mainnet", main_indexer, main_event_filter)
+
+        print("checking deposits on Testnet...")
+        poll_one("testnet", test_indexer, test_event_filter)
+
+        time.sleep(poll_interval)
 
 
-def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval):
+
+
+
+def log_loop_old(w3main, w3test, main_event_filter, test_event_filter, poll_interval):
 
     line = ""
     processing_main = 0
@@ -507,7 +605,7 @@ def main():
     test_w3 = Web3(Web3.HTTPProvider(testnet_infura_prov))
     print("testnet: " , test_w3)
     print(test_w3.is_connected())
-    
+
     
     abi = '[{"inputs": [ { "internalType": "uint256", "name": "amount", "type": "uint256", "indexed": false }, { "internalType": "address", "name": "sender", "type": "address", "indexed": false }, { "internalType": "uint256", "name": "tokenId", "type": "uint256", "indexed": true } ], "type": "event", "name": "Deposit", "anonymous": false }]'
 
@@ -515,21 +613,14 @@ def main():
     main_address = Web3.to_checksum_address(mainnet_plantoid)
     test_address = Web3.to_checksum_address(testnet_plantoid)
 
-    main_contract = main_w3.eth.contract(address=main_address, abi=abi)
-    print("Mainnet balance: ", main_w3.eth.get_balance(main_address))
+    # main_contract = main_w3.eth.contract(address=main_address, abi=abi)
+    # print("Mainnet balance: ", main_w3.eth.get_balance(main_address))
 
-    test_contract = test_w3.eth.contract(address=test_address, abi=abi)
-    print("Testnet balance: ", test_w3.eth.get_balance(test_address))
+    # test_contract = test_w3.eth.contract(address=test_address, abi=abi)
+    # print("Testnet balance: ", test_w3.eth.get_balance(test_address))
     
+
     print("--------------------------------------------------------------------\n")
-
-
-# event_filter = contract.events.Deposit.createFilter(fromBlock=1, toBlock='latest')
-# while True:
-# print(event_filter.get_all_entries())
-# time.sleep(2)
-
-    # print(contract.events.Deposit)
 
     main_event_filter = main_contract.events.Deposit.create_filter(from_block=1)
     print(main_event_filter, "---mainnet")
@@ -537,7 +628,13 @@ def main():
     test_event_filter = test_contract.events.Deposit.create_filter(from_block=1)
     print(test_event_filter, "---testnet")
 
-    log_loop(main_w3, test_w3, main_event_filter, test_event_filter, 7)
+
+    main_indexer = IndexerClient(url=INDEXER_URL, plantoid_address=mainnet_plantoid, minted_db_path='minted_mainnet.db') if INDEXER_URL else None
+    test_indexer = IndexerClient(url=INDEXER_URL, plantoid_address=testnet_plantoid, minted_db_path='minted_testnet.db') if INDEXER_URL else None
+
+
+    log_loop(main_w3, test_w3, main_event_filter, test_event_filter, 7,
+            main_indexer=main_indexer, test_indexer=test_indexer)
 
 
 if __name__ == '__main__':
