@@ -613,21 +613,16 @@ def main():
     main_address = Web3.to_checksum_address(mainnet_plantoid)
     test_address = Web3.to_checksum_address(testnet_plantoid)
 
-    # main_contract = main_w3.eth.contract(address=main_address, abi=abi)
+    main_contract = main_w3.eth.contract(address=main_address, abi=abi)
     # print("Mainnet balance: ", main_w3.eth.get_balance(main_address))
-
-    # test_contract = test_w3.eth.contract(address=test_address, abi=abi)
+    test_contract = test_w3.eth.contract(address=test_address, abi=abi)
     # print("Testnet balance: ", test_w3.eth.get_balance(test_address))
     
 
     print("--------------------------------------------------------------------\n")
 
     main_event_filter = main_contract.events.Deposit.create_filter(from_block=1)
-    print(main_event_filter, "---mainnet")
-    
     test_event_filter = test_contract.events.Deposit.create_filter(from_block=1)
-    print(test_event_filter, "---testnet")
-
 
     main_indexer = IndexerClient(url=INDEXER_URL, plantoid_address=mainnet_plantoid, minted_db_path='minted_mainnet.db') if INDEXER_URL else None
     test_indexer = IndexerClient(url=INDEXER_URL, plantoid_address=testnet_plantoid, minted_db_path='minted_testnet.db') if INDEXER_URL else None
