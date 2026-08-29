@@ -19,6 +19,7 @@ import requests
 import subprocess
 
 import pin_utils
+import http_utils
 
 
 from indexer_client import IndexerClient, IndexerUnavailable
@@ -52,6 +53,7 @@ Pinata.pin_file = _pinata_pin_file_safe
 load_dotenv('/home/patch/plantoidz-pi/secrets.env')
 
 INDEXER_URL = os.getenv('INDEXER_URL', 'https://plantoidz-brainz.tail98279f.ts.net')
+USE_HTTP = os.getenv('USE_HTTP', 'false').lower() in ('1', 'true', 'yes')
 
 API_KEY = os.getenv('API_KEY')
 API_SECRET = os.getenv('API_SECRET')
@@ -126,7 +128,10 @@ def activatePlantoid(amount, tID, network):
     client_lights.send_message('/plantoid/255/255/capa/0', 1024)
     print("de-activated")
 
-    if(network == "mainnet" or failsafe == 0):
+    
+    if(network == "http"):
+        create_metadata(tID, network) # "http" network means no IPFS pni, no reveal tx for http feeds
+    elif(network == "mainnet" or failsafe == 0):
         create_metadata(tID, network)
         enable_seed_reveal(tID, network)
 
@@ -136,8 +141,8 @@ path_rec = './recordings/'
 
 
 
-def create_pin_animation2(file, network):
-    
+
+def make_video(file, network):
     file_stats = os.stat(file)
     token_Id = os.path.splitext(os.path.basename(file))[0]
     movie_path = None
@@ -151,6 +156,14 @@ def create_pin_animation2(file, network):
                   " --fps 24")
         
         movie_path = '/home/patch/plantoidz-pi/videos/' + network + "_" + token_Id + ".mp4"
+
+    return movie_path
+
+
+
+def create_pin_animation2(file, network):
+    
+    movie_path = make_video(file, network)
 
     if not movie_path: 
         print("NO MOVIE PATH, file_stats == 0")
@@ -205,6 +218,20 @@ def create_metadata(tID, network):
     if not os.path.isfile(file):
         # Path(file).touch()
         return
+
+
+    if network == "http":
+        movie_path = make_video(file, network)
+        if not movie_path:
+            return
+        url = http_utils.publish_video(tID, movie_path)
+        if url:
+            qrcode = pin_utils.create_ipfs_qr(url)   # despite the name, it QRs any URL
+            pin_utils.print_thermal_txt("Watch your seed grow: " + url)
+            pin_utils.print_thermal_img(qrcode)
+            os.remove(file)
+        return   # no metadata json - nothing consumes it without a reveal tx
+
 
 
     # create and pin the video processed from the mp3 to ipfs
@@ -486,6 +513,16 @@ def log_loop(w3main, w3test, main_event_filter, test_event_filter, poll_interval
         print("checking deposits on Testnet...")
         poll_one("testnet", test_indexer, test_event_filter)
 
+        if USE_HTTP:
+            print("checking deposits on HTTP feed.........")
+            try:
+                deposit = http_utils.check_for_deposits()
+                if deposit is not None:
+                    (tID, amount) = deposit
+                    activatePlantoid(amount, tID, "http")
+            except Exception as e:
+                print("[http feed] check failed: " + str(e))
+
         time.sleep(poll_interval)
 
 
@@ -627,6 +664,8 @@ def main():
     main_indexer = IndexerClient(url=INDEXER_URL, plantoid_address=mainnet_plantoid, minted_db_path='minted_mainnet.db') if INDEXER_URL else None
     test_indexer = IndexerClient(url=INDEXER_URL, plantoid_address=testnet_plantoid, minted_db_path='minted_testnet.db') if INDEXER_URL else None
 
+    if USE_HTTP:
+        http_utils.setup()
 
     log_loop(main_w3, test_w3, main_event_filter, test_event_filter, 7,
             main_indexer=main_indexer, test_indexer=test_indexer)
