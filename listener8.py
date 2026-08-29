@@ -249,7 +249,7 @@ def create_metadata(tID, network):
         qrcode = pin_utils.create_ipfs_qr("https://ipfs.io/ipfs/" + ipfsQmp4)
         pin_utils.print_thermal_txt("Redeem your NFT: https://13.plantoid.org")
         pin_utils.print_thermal_img(qrcode)
-        os.remove(file)
+        # os.remove(file)
     else:
         return
         
