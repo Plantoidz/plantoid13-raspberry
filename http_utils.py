@@ -63,6 +63,8 @@ def publish_video(token_Id, movie_path):
 
     # post the finished video to plantoid.org, return the public URL to QR
 
+    seed_n = str(int(token_Id) - HTTP_TOKEN_OFFSET)   # upload under the real counter, not the internal id
+
     if not movie_path or not os.path.isfile(movie_path):
         print("[http feed] no movie to publish")
         return None
@@ -71,7 +73,7 @@ def publish_video(token_Id, movie_path):
         with open(movie_path, "rb") as f:
             r = requests.post(
                 SERVER_URL + "/video.php",
-                files={"file": (f"{PLANTOID_N}-{token_Id}.mp4", f, "video/mp4")},
+                files={"file": (f"{PLANTOID_N}-{seed_n}.mp4", f, "video/mp4")},
                 data={"token_id": token_Id, "plantoid": PLANTOID_N},
                 timeout=120
             )
