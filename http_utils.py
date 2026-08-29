@@ -74,7 +74,7 @@ def publish_video(token_Id, movie_path):
             r = requests.post(
                 SERVER_URL + "/video.php",
                 files={"file": (f"{PLANTOID_N}-{seed_n}.mp4", f, "video/mp4")},
-                data={"token_id": token_Id, "plantoid": PLANTOID_N},
+                data={"token_id": seed_n, "plantoid": PLANTOID_N},
                 timeout=120
             )
             r.raise_for_status()
