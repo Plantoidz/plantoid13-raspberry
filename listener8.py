@@ -229,7 +229,7 @@ def create_metadata(tID, network):
             qrcode = pin_utils.create_ipfs_qr(url)   # despite the name, it QRs any URL
             pin_utils.print_thermal_txt("Watch your seed grow: " + url)
             pin_utils.print_thermal_img(qrcode)
-            os.remove(file)
+            # os.remove(file)
         return   # no metadata json - nothing consumes it without a reveal tx
 
 
